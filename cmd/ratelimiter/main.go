@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -12,13 +14,25 @@ import (
 	"github.com/stemitom/rate-limiter/internal/limiter"
 )
 
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return defaultValue
+}
+
 func main() {
+	redisAddr := getEnv("REDIS_ADDR", "localhost:6379")
+	rateLimit, _ := strconv.Atoi(getEnv("RATE_LIMIT", "10"))
+	windowSize, _ := time.ParseDuration(getEnv("WINDOW_SIZE", "1m"))
+	port := getEnv("PORT", "8081")
+
 	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr: redisAddr,
 	})
 	defer rdb.Close()
 
-	limiter := limiter.NewRateLimiter(rdb, 10, time.Minute)
+	limiter := limiter.NewRateLimiter(rdb, rateLimit, windowSize)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
@@ -38,6 +52,12 @@ func main() {
 		fmt.Fprintln(w, "Request allowed")
 	})
 
-	log.Println("Rate limiter service started on :8081")
-	log.Fatal(http.ListenAndServe(":8081", nil))
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	addr := fmt.Sprintf(":%s", port)
+	log.Printf("Rate limiter service started on %s", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
+
