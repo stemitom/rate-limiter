@@ -32,20 +32,25 @@ func (rl *RateLimiter) Allow(ctx context.Context, key string) (bool, error) {
 
 	countCmd := pipe.ZCount(ctx, key, fmt.Sprint(windowStart), fmt.Sprint(now))
 
+	pipe.Expire(ctx, key, rl.window+time.Minute)
+
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("redis pipeline error: %w", err)
 	}
 
 	count, err := countCmd.Result()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("count result error: %w", err)
 	}
 
 	if count < int64(rl.limit) {
-		added, err := rl.client.ZAdd(ctx, key, &redis.Z{Score: float64(now), Member: now}).Result()
+		added, err := rl.client.ZAdd(ctx, key, &redis.Z{
+			Score:  float64(now),
+			Member: now,
+		}).Result()
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("add request error: %w", err)
 		}
 		return added > 0, nil
 	}

@@ -10,7 +10,22 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+var requestsTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "load_balancer_requests_total",
+		Help: "Total number of requests handled by the load balancer.",
+	},
+	[]string{"backend", "status"},
+)
+
+func init() {
+	prometheus.MustRegister(requestsTotal)
+}
 
 type Backend struct {
 	URL    *url.URL
@@ -104,13 +119,16 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		backend := getNextBackend(backends)
 		if backend != nil {
+			requestsTotal.WithLabelValues(backend.URL.Host, "200").Inc()
 			backend.Proxy.ServeHTTP(w, r)
 			return
 		}
+		requestsTotal.WithLabelValues("none", "503").Inc()
 		http.Error(w, "No healthy backends", http.StatusServiceUnavailable)
 	})
+
+	http.Handle("/metrics", promhttp.Handler())
 
 	log.Println("Load balancer started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
-

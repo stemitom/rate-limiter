@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "rate_limiter"
+    static_configs:
+      - targets: ["ratelimiter1:8081", "ratelimiter2:8082"]
+
+  - job_name: "load_balancer"
+    static_configs:
+      - targets: ["loadbalancer:8080"]

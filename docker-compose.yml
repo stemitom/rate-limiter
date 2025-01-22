@@ -1,0 +1,67 @@
+services:
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+
+  ratelimiter1:
+    build:
+      context: .
+      dockerfile: cmd/ratelimiter/Dockerfile
+    environment:
+      - PORT=8081
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+
+  ratelimiter2:
+    build:
+      context: .
+      dockerfile: cmd/ratelimiter/Dockerfile
+    environment:
+      - PORT=8082
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "8082:8082"
+    depends_on:
+      - redis
+
+  loadbalancer:
+    build:
+      context: .
+      dockerfile: cmd/loadbalancer/Dockerfile
+    environment:
+      BACKEND_1_URL=ratelimiter1:8081
+      BACKEND_2_URL=ratelimiter:8082
+      BACKEND_1_WEIGHT=1
+      BACKEND_2_WEIGHT=1
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ratelimiter1
+      - ratelimiter2
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - ratelimiter1
+      - ratelimiter2
+      - loadbalancer
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  grafana-storage:
