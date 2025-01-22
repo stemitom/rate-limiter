@@ -64,7 +64,7 @@ func getClientIP(r *http.Request) string {
 func main() {
 	redisAddr := getEnv("REDIS_ADDR", "localhost:6379")
 	rateLimit, _ := strconv.Atoi(getEnv("RATE_LIMIT", "10"))
-	windowSize, _ := time.ParseDuration(getEnv("WINDOW_SIZE", "1m"))
+	windowSize, _ := time.ParseDuration(getEnv("WINDOW_SIZE", "1s"))
 	port := getEnv("PORT", "8081")
 
 	log.Printf("Connecting to Redis at %s", redisAddr)
