@@ -33,10 +33,10 @@ services:
       context: .
       dockerfile: cmd/loadbalancer/Dockerfile
     environment:
-      BACKEND_1_URL=ratelimiter1:8081
-      BACKEND_2_URL=ratelimiter:8082
-      BACKEND_1_WEIGHT=1
-      BACKEND_2_WEIGHT=1
+      - BACKEND_1_URL=ratelimiter1:8081
+      - BACKEND_2_URL=ratelimiter2:8082
+      - BACKEND_1_WEIGHT=1
+      - BACKEND_2_WEIGHT=1
     ports:
       - "8080:8080"
     depends_on:
