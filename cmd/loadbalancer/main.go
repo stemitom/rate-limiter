@@ -65,7 +65,7 @@ func healthCheck(backend *Backend) {
 	}
 }
 
-func getNextBackend(backends []*Backend) *Backend {
+func getNextBackend(r *rand.Rand, backends []*Backend) *Backend {
 	totalWeight := 0
 	for _, backend := range backends {
 		if backend.IsAlive() {
@@ -78,7 +78,7 @@ func getNextBackend(backends []*Backend) *Backend {
 	}
 
 	// Select a backend based on weight
-	randomWeight := rand.Intn(totalWeight)
+	randomWeight := r.Intn(totalWeight)
 	for _, backend := range backends {
 		if backend.IsAlive() {
 			randomWeight -= backend.Weight
@@ -99,7 +99,7 @@ func getEnv(key, defaultValue string) string {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	backend1URL := getEnv("BACKEND_1_URL", "localhost:8081")
 	backend2URL := getEnv("BACKEND_2_URL", "localhost:8082")
@@ -117,7 +117,7 @@ func main() {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		backend := getNextBackend(backends)
+		backend := getNextBackend(rnd, backends)
 		if backend != nil {
 			requestsTotal.WithLabelValues(
 				backend.URL.Host,
