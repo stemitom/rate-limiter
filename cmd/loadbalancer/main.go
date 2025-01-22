@@ -119,7 +119,10 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		backend := getNextBackend(backends)
 		if backend != nil {
-			requestsTotal.WithLabelValues(backend.URL.Host, "200").Inc()
+			requestsTotal.WithLabelValues(
+				backend.URL.Host,
+				"200",
+			).Inc()
 			backend.Proxy.ServeHTTP(w, r)
 			return
 		}
