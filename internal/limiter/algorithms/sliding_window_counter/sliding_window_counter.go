@@ -79,7 +79,7 @@ func (s *SlidingWindowCounter) GetRequestCount(key string) (int, error) {
 
 // UpdateConfig safely updates the window size and request limit.
 func (s *SlidingWindowCounter) UpdateConfig(window time.Duration, limit int) {
-	s.mu.Lock()
+    s.mu.Lock()
 	defer s.mu.Unlock()
 	s.window = window
 	s.limit = limit
