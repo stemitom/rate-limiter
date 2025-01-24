@@ -44,11 +44,11 @@ The system consists of several components:
    ```
 
 This will start:
-- Two rate limiter instances (ports 8081, 8082)
-- Load balancer (port 8080)
-- Redis (port 6379)
-- Prometheus (port 9090)
-- Grafana (port 3000)
+- Two rate limiter instances (`::8081`, `::8082`)
+- Load balancer (`::8080`)
+- Redis (`::6379`)
+- Prometheus (`::9090`)
+- Grafana (`::3000`)
 
 ## Configuration
 
