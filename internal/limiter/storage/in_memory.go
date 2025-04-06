@@ -7,10 +7,10 @@ import (
 	"time"
 )
 
-type InMemStorage struct {  
-    mu    sync.Mutex  
-    data  map[string][]time.Time // Key → Sorted timestamps  
-}  
+type InMemStorage struct {
+    mu    sync.Mutex
+    data  map[string][]time.Time // Key → Sorted timestamps
+}
 
 // Constructor for in-memory storage
 func NewInMemStorage() *InMemStorage {

@@ -11,36 +11,36 @@ import (
 type SlidingWindowCounter struct {
     mu      sync.RWMutex         // For thread-safe config updates
     storage  storage.Storage
-    window   time.Duration  
-    limit    int  
-}  
+    window   time.Duration
+    limit    int
+}
 
-func NewSlidingWindowCounter(  
-    storage storage.Storage,  
-    window time.Duration,  
-    limit int,  
-) *SlidingWindowCounter {  
-    return &SlidingWindowCounter{  
-        storage: storage,  
-        window:  window,  
-        limit:   limit,  
-    }  
-}  
+func NewSlidingWindowCounter(
+    storage storage.Storage,
+    window time.Duration,
+    limit int,
+) *SlidingWindowCounter {
+    return &SlidingWindowCounter{
+        storage: storage,
+        window:  window,
+        limit:   limit,
+    }
+}
 
 func (s *SlidingWindowCounter) Allow(key string) (bool, error) {
     s.mu.RLock()
 	defer s.mu.RUnlock()
 
-    now := time.Now()  
-    windowStart := now.Add(-s.window)  
+    now := time.Now()
+    windowStart := now.Add(-s.window)
 
-    return s.storage.CheckAndAdd(  
-        context.Background(),  
-        key,  
-        windowStart,  
-        now,  
-        s.limit,  
-    )  
+    return s.storage.CheckAndAdd(
+        context.Background(),
+        key,
+        windowStart,
+        now,
+        s.limit,
+    )
 }
 
 // RetryAfter returns the duration until the next allowed request.
