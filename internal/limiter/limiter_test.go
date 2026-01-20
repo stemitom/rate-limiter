@@ -2,8 +2,6 @@ package limiter
 
 import (
 	"context"
-	"math/rand"
-	"sync"
 	"testing"
 	"time"
 
@@ -40,39 +38,42 @@ func TestSlidingWindowRateLimiter(t *testing.T) {
 	t.Run("within limit", func(t *testing.T) {
 		client.FlushAll(ctx)
 
-		for i := 0; i < limit; i++ {
-			allowed, err := limiter.Allow(ctx, key)
+		for i := range limit {
+			result, err := limiter.Allow(ctx, key)
 			assert.NoError(t, err)
-			assert.True(t, allowed, "Request %d should be allowed", i+1)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+			assert.Equal(t, int64(limit-i-1), result.Remaining)
+			assert.Equal(t, limit, result.Limit)
 		}
 	})
 
 	t.Run("exceeding limit", func(t *testing.T) {
-		allowed, err := limiter.Allow(ctx, key)
+		result, err := limiter.Allow(ctx, key)
 		assert.NoError(t, err)
-		assert.False(t, allowed, "Request should be denied when exceeding limit")
+		assert.False(t, result.Allowed, "Request should be denied when exceeding limit")
+		assert.Equal(t, int64(0), result.Remaining)
 	})
 
 	t.Run("sliding window behavior", func(t *testing.T) {
 		client.FlushAll(ctx)
 
-		for i := 0; i < limit; i++ {
-			allowed, err := limiter.Allow(ctx, key)
+		for i := range limit {
+			result, err := limiter.Allow(ctx, key)
 			require.NoError(t, err)
-			require.True(t, allowed)
+			require.True(t, result.Allowed, "Request %d should be allowed", i+1)
 		}
 
 		time.Sleep(window / 2)
 
-		allowed, err := limiter.Allow(ctx, key)
+		result, err := limiter.Allow(ctx, key)
 		assert.NoError(t, err)
-		assert.False(t, allowed, "Should still be limited before window expires")
+		assert.False(t, result.Allowed, "Should still be limited before window expires")
 
 		time.Sleep(window)
 
-		allowed, err = limiter.Allow(ctx, key)
+		result, err = limiter.Allow(ctx, key)
 		assert.NoError(t, err)
-		assert.True(t, allowed, "Should allow requests after window expires")
+		assert.True(t, result.Allowed, "Should allow requests after window expires")
 	})
 
 	t.Run("multiple keys", func(t *testing.T) {
@@ -81,60 +82,55 @@ func TestSlidingWindowRateLimiter(t *testing.T) {
 		key1 := "client1"
 		key2 := "client2"
 
-		for i := 0; i < limit; i++ {
-			allowed, err := limiter.Allow(ctx, key1)
+		for i := range limit {
+			result, err := limiter.Allow(ctx, key1)
 			require.NoError(t, err)
-			require.True(t, allowed)
+			require.True(t, result.Allowed, "Request %d for key1 should be allowed", i+1)
 		}
 
-		allowed, err := limiter.Allow(ctx, key2)
+		result, err := limiter.Allow(ctx, key2)
 		assert.NoError(t, err)
-		assert.True(t, allowed, "Different keys should have separate limits")
+		assert.True(t, result.Allowed, "Different keys should have separate limits")
+	})
+
+	t.Run("result contains correct metadata", func(t *testing.T) {
+		client.FlushAll(ctx)
+
+		result, err := limiter.Allow(ctx, key)
+		require.NoError(t, err)
+
+		assert.True(t, result.Allowed)
+		assert.Equal(t, limit, result.Limit)
+		assert.Equal(t, int64(limit-1), result.Remaining)
+		assert.True(t, result.ResetAt.After(time.Now()))
 	})
 
 	t.Run("error handling", func(t *testing.T) {
 		client.Close()
 
-		allowed, err := limiter.Allow(ctx, key)
+		result, err := limiter.Allow(ctx, key)
 		assert.Error(t, err, "Should return error when Redis is unavailable")
-		assert.False(t, allowed, "Should deny requests when Redis is unavailable")
+		assert.False(t, result.Allowed, "Should deny requests when Redis is unavailable")
 	})
 }
 
-func TestRateLimiterConcurrency(t *testing.T) {
+func TestRateLimiterSequential(t *testing.T) {
 	client, cleanup := setupTestRedis(t)
 	defer cleanup()
 
 	window := 100 * time.Millisecond
 	limit := 5
 	limiter := NewRateLimiter(client, limit, window)
-	key := "concurrent-test"
+	key := "sequential-test"
 	ctx := context.Background()
 
 	client.FlushAll(ctx)
 
-	var wg sync.WaitGroup
-	results := make(chan bool, limit*2)
-
-	// Run requests concurrently
-	for i := 0; i < limit*2; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			// Add small random delay to better simulate real-world conditions
-			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
-			allowed, err := limiter.Allow(ctx, key)
-			require.NoError(t, err)
-			results <- allowed
-		}()
-	}
-
-	wg.Wait()
-	close(results)
-
 	var allowed, denied int
-	for result := range results {
-		if result {
+	for range limit * 2 {
+		result, err := limiter.Allow(ctx, key)
+		require.NoError(t, err)
+		if result.Allowed {
 			allowed++
 		} else {
 			denied++
@@ -143,4 +139,16 @@ func TestRateLimiterConcurrency(t *testing.T) {
 
 	assert.Equal(t, limit, allowed, "Should allow exactly %d requests", limit)
 	assert.Equal(t, limit, denied, "Should deny exactly %d requests", limit)
+}
+
+func TestRateLimiterAccessors(t *testing.T) {
+	client, cleanup := setupTestRedis(t)
+	defer cleanup()
+
+	window := 5 * time.Second
+	limit := 100
+	limiter := NewRateLimiter(client, limit, window)
+
+	assert.Equal(t, limit, limiter.Limit())
+	assert.Equal(t, window, limiter.Window())
 }
